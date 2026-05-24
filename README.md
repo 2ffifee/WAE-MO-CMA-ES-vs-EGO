@@ -11,3 +11,25 @@ Temat: porownanie dzialania algorytmu MO-CMA-ES z algorytmem EGO na benchmarku B
 - `scripts/` - skrypty uruchomieniowe.
 - `configs/` - konfiguracje eksperymentow.
 - `results/` - wyniki eksperymentow generowane lokalnie.
+
+## Setup
+
+Projekt jest przygotowany jako pakiet Pythonowy. Zalecana wersja Pythona to 3.10 lub nowsza.
+
+Windows:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
