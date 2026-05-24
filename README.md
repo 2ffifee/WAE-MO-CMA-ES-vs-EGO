@@ -41,3 +41,27 @@ Po instalacji zaleznosci mozna sprawdzic, czy backend COCO dla `bbob-biobj` jest
 ```bash
 python scripts/check_coco_install.py
 ```
+
+## Smoke experiment
+
+Minimalny eksperyment MO-CMA-ES jest zdefiniowany w `configs/smoke.yaml`.
+
+Uruchomienie:
+
+```bash
+python scripts/run_experiment.py --config configs/smoke.yaml
+```
+
+Wyniki surowe sa zapisywane do:
+
+```text
+results/raw/mo_cma_es_smoke.csv
+```
+
+Podsumowanie i wykres frontu:
+
+```bash
+python scripts/summarize_results.py --input results/raw/mo_cma_es_smoke.csv
+```
+
+Pliki przetworzone sa zapisywane w `results/processed/`.
