@@ -33,3 +33,11 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
+
+## COCO check
+
+Po instalacji zaleznosci mozna sprawdzic, czy backend COCO dla `bbob-biobj` jest dostepny:
+
+```bash
+python scripts/check_coco_install.py
+```
