@@ -25,6 +25,15 @@ class BudgetConfig:
 
 
 @dataclass(frozen=True)
+class AlgorithmConfig:
+    name: str
+    num_kernels: int
+    sigma0: float
+    reference_point: tuple[float, float]
+    ask_mode: str
+
+
+@dataclass(frozen=True)
 class SeedEntry:
     run_id: str
     seed: int
@@ -34,6 +43,7 @@ class SeedEntry:
 class ExperimentConfig:
     name: str
     output_dir: Path
+    algorithm: AlgorithmConfig
     benchmark: BenchmarkConfig
     budget: BudgetConfig
     seeds: tuple[SeedEntry, ...]
@@ -50,6 +60,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError(f"Configuration file {config_path} must contain a mapping.")
 
     experiment = _required_mapping(raw, "experiment")
+    algorithm = _required_mapping(raw, "algorithm")
     benchmark = _required_mapping(raw, "benchmark")
     budget = _required_mapping(raw, "budget")
     seed_config = _required_mapping(raw, "seeds")
@@ -67,6 +78,14 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     budget_config = BudgetConfig(
         evaluations_multiplier=_required_positive_int(budget, "evaluations_multiplier")
     )
+    algorithm_config = AlgorithmConfig(
+        name=_required_str(algorithm, "name"),
+        num_kernels=_required_positive_int(algorithm, "num_kernels"),
+        sigma0=float(_required_number(algorithm, "sigma0")),
+        reference_point=_required_float_pair(algorithm, "reference_point"),
+        ask_mode=_required_str(algorithm, "ask_mode"),
+    )
+    _validate_algorithm(algorithm_config)
 
     seeds = _load_seeds(
         config_path.parent / _required_str(seed_config, "file"),
@@ -78,6 +97,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     return ExperimentConfig(
         name=_required_str(experiment, "name"),
         output_dir=Path(_required_str(experiment, "output_dir")),
+        algorithm=algorithm_config,
         benchmark=benchmark_config,
         budget=budget_config,
         seeds=seeds,
@@ -106,6 +126,15 @@ def _load_seeds(path: Path, requested_run_ids: tuple[str, ...]) -> tuple[SeedEnt
 def _validate_benchmark(config: BenchmarkConfig) -> None:
     if config.lower_bound >= config.upper_bound:
         raise ValueError("Benchmark lower_bound must be smaller than upper_bound.")
+
+
+def _validate_algorithm(config: AlgorithmConfig) -> None:
+    if config.name != "mo-cma-es":
+        raise ValueError(f"Unsupported algorithm in this workflow: {config.name!r}.")
+    if config.sigma0 <= 0.0:
+        raise ValueError("Algorithm sigma0 must be positive.")
+    if config.ask_mode not in {"sequential", "all"}:
+        raise ValueError("Algorithm ask_mode must be either 'sequential' or 'all'.")
 
 
 def _required_mapping(raw: dict, key: str) -> dict:
@@ -143,3 +172,12 @@ def _required_int_tuple(raw: dict, key: str) -> tuple[int, ...]:
     if not all(isinstance(item, int) and item > 0 for item in value):
         raise ValueError(f"All values in '{key}' must be positive integers.")
     return tuple(value)
+
+
+def _required_float_pair(raw: dict, key: str) -> tuple[float, float]:
+    value = raw.get(key)
+    if not isinstance(value, list) or len(value) != 2:
+        raise ValueError(f"Missing or invalid two-value numeric list '{key}'.")
+    if not all(isinstance(item, (int, float)) for item in value):
+        raise ValueError(f"All values in '{key}' must be numeric.")
+    return (float(value[0]), float(value[1]))

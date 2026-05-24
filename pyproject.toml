@@ -9,8 +9,10 @@ description = "Comparison of MO-CMA-ES and EGO on BBOB-BIOBJ benchmark problems.
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "cma>=4.4",
     "coco-experiment>=2.8",
     "cocopp>=2.8",
+    "comocma>=0.6",
     "matplotlib>=3.8",
     "numpy>=1.26",
     "pandas>=2.2",

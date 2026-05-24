@@ -2,6 +2,13 @@ experiment:
   name: mo_cma_es_smoke
   output_dir: results/raw
 
+algorithm:
+  name: mo-cma-es
+  num_kernels: 5
+  sigma0: 0.3
+  reference_point: [100000000.0, 100000000.0]
+  ask_mode: sequential
+
 benchmark:
   suite: bbob-biobj
   dimensions: [2]
