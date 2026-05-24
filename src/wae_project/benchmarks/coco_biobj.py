@@ -74,6 +74,13 @@ class CocoBiobjProblem:
             )
         return values
 
+    def free(self) -> None:
+        """Release the underlying COCO problem if the backend exposes this method."""
+
+        free = getattr(self.problem, "free", None)
+        if callable(free):
+            free()
+
 
 def iter_coco_biobj_problems(
     benchmark: BenchmarkConfig,
