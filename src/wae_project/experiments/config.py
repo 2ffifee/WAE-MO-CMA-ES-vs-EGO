@@ -165,13 +165,15 @@ def _parse_algorithm_config(raw: dict) -> AlgorithmConfig:
         _validate_mo_cma_es(config)
         return config
     if name == "parego":
-        return ParEgoConfig(
+        config = ParEgoConfig(
             name=name,
             initial_points=_required_positive_int(raw, "initial_points"),
             candidate_restarts=_required_positive_int(raw, "candidate_restarts"),
             raw_samples=_required_positive_int(raw, "raw_samples"),
             scalarization_samples=_required_positive_int(raw, "scalarization_samples"),
         )
+        _validate_parego(config)
+        return config
     raise ValueError(f"Unsupported algorithm: {name!r}.")
 
 
@@ -180,6 +182,13 @@ def _validate_mo_cma_es(config: MoCmaEsConfig) -> None:
         raise ValueError("Algorithm sigma0 must be positive.")
     if config.ask_mode not in {"sequential", "all"}:
         raise ValueError("Algorithm ask_mode must be either 'sequential' or 'all'.")
+
+
+def _validate_parego(config: ParEgoConfig) -> None:
+    if config.initial_points < 2:
+        raise ValueError("ParEGO initial_points must be at least 2.")
+    if config.raw_samples < config.candidate_restarts:
+        raise ValueError("ParEGO raw_samples must be greater than or equal to candidate_restarts.")
 
 
 def _required_mapping(raw: dict, key: str) -> dict:
