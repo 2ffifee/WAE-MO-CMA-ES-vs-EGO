@@ -27,10 +27,22 @@ class BudgetConfig:
 @dataclass(frozen=True)
 class AlgorithmConfig:
     name: str
+
+
+@dataclass(frozen=True)
+class MoCmaEsConfig(AlgorithmConfig):
     num_kernels: int
     sigma0: float
     reference_point: tuple[float, float]
     ask_mode: str
+
+
+@dataclass(frozen=True)
+class ParEgoConfig(AlgorithmConfig):
+    initial_points: int
+    candidate_restarts: int
+    raw_samples: int
+    scalarization_samples: int
 
 
 @dataclass(frozen=True)
@@ -43,10 +55,16 @@ class SeedEntry:
 class ExperimentConfig:
     name: str
     output_dir: Path
-    algorithm: AlgorithmConfig
+    algorithms: tuple[AlgorithmConfig, ...]
     benchmark: BenchmarkConfig
     budget: BudgetConfig
     seeds: tuple[SeedEntry, ...]
+
+    @property
+    def algorithm(self) -> AlgorithmConfig:
+        """Return the first configured algorithm for older single-algorithm scripts."""
+
+        return self.algorithms[0]
 
 
 def load_experiment_config(path: str | Path) -> ExperimentConfig:
@@ -60,7 +78,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError(f"Configuration file {config_path} must contain a mapping.")
 
     experiment = _required_mapping(raw, "experiment")
-    algorithm = _required_mapping(raw, "algorithm")
+    algorithms_raw = _algorithm_entries(raw)
     benchmark = _required_mapping(raw, "benchmark")
     budget = _required_mapping(raw, "budget")
     seed_config = _required_mapping(raw, "seeds")
@@ -78,14 +96,9 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     budget_config = BudgetConfig(
         evaluations_multiplier=_required_positive_int(budget, "evaluations_multiplier")
     )
-    algorithm_config = AlgorithmConfig(
-        name=_required_str(algorithm, "name"),
-        num_kernels=_required_positive_int(algorithm, "num_kernels"),
-        sigma0=float(_required_number(algorithm, "sigma0")),
-        reference_point=_required_float_pair(algorithm, "reference_point"),
-        ask_mode=_required_str(algorithm, "ask_mode"),
-    )
-    _validate_algorithm(algorithm_config)
+    algorithms = tuple(_parse_algorithm_config(algorithm) for algorithm in algorithms_raw)
+    if not algorithms:
+        raise ValueError("At least one algorithm must be configured.")
 
     seeds = _load_seeds(
         config_path.parent / _required_str(seed_config, "file"),
@@ -97,7 +110,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     return ExperimentConfig(
         name=_required_str(experiment, "name"),
         output_dir=Path(_required_str(experiment, "output_dir")),
-        algorithm=algorithm_config,
+        algorithms=algorithms,
         benchmark=benchmark_config,
         budget=budget_config,
         seeds=seeds,
@@ -128,9 +141,41 @@ def _validate_benchmark(config: BenchmarkConfig) -> None:
         raise ValueError("Benchmark lower_bound must be smaller than upper_bound.")
 
 
-def _validate_algorithm(config: AlgorithmConfig) -> None:
-    if config.name != "mo-cma-es":
-        raise ValueError(f"Unsupported algorithm in this workflow: {config.name!r}.")
+def _algorithm_entries(raw: dict) -> tuple[dict, ...]:
+    if "algorithms" in raw:
+        algorithms = raw["algorithms"]
+        if not isinstance(algorithms, list) or not algorithms:
+            raise ValueError("The 'algorithms' section must be a non-empty list.")
+        if not all(isinstance(algorithm, dict) for algorithm in algorithms):
+            raise ValueError("Each algorithm entry must be a mapping.")
+        return tuple(algorithms)
+    return (_required_mapping(raw, "algorithm"),)
+
+
+def _parse_algorithm_config(raw: dict) -> AlgorithmConfig:
+    name = _required_str(raw, "name")
+    if name == "mo-cma-es":
+        config = MoCmaEsConfig(
+            name=name,
+            num_kernels=_required_positive_int(raw, "num_kernels"),
+            sigma0=float(_required_number(raw, "sigma0")),
+            reference_point=_required_float_pair(raw, "reference_point"),
+            ask_mode=_required_str(raw, "ask_mode"),
+        )
+        _validate_mo_cma_es(config)
+        return config
+    if name == "parego":
+        return ParEgoConfig(
+            name=name,
+            initial_points=_required_positive_int(raw, "initial_points"),
+            candidate_restarts=_required_positive_int(raw, "candidate_restarts"),
+            raw_samples=_required_positive_int(raw, "raw_samples"),
+            scalarization_samples=_required_positive_int(raw, "scalarization_samples"),
+        )
+    raise ValueError(f"Unsupported algorithm: {name!r}.")
+
+
+def _validate_mo_cma_es(config: MoCmaEsConfig) -> None:
     if config.sigma0 <= 0.0:
         raise ValueError("Algorithm sigma0 must be positive.")
     if config.ask_mode not in {"sequential", "all"}:

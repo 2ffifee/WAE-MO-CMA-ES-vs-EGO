@@ -9,14 +9,17 @@ description = "Comparison of MO-CMA-ES and EGO on BBOB-BIOBJ benchmark problems.
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "botorch>=0.11",
     "cma>=4.4",
     "coco-experiment>=2.8",
     "cocopp>=2.8",
     "comocma>=0.6",
+    "gpytorch>=1.12",
     "matplotlib>=3.8",
     "numpy>=1.26",
     "pandas>=2.2",
     "PyYAML>=6.0",
+    "torch>=2.3",
 ]
 
 [project.optional-dependencies]

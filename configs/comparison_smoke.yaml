@@ -1,0 +1,30 @@
+experiment:
+  name: comparison_smoke
+  output_dir: results/raw
+
+algorithms:
+  - name: mo-cma-es
+    num_kernels: 5
+    sigma0: 0.3
+    reference_point: [100000000.0, 100000000.0]
+    ask_mode: sequential
+  - name: parego
+    initial_points: 6
+    candidate_restarts: 5
+    raw_samples: 64
+    scalarization_samples: 1
+
+benchmark:
+  suite: bbob-biobj
+  dimensions: [2]
+  function_ids: [1, 2]
+  instances: [1]
+  lower_bound: -5.0
+  upper_bound: 5.0
+
+budget:
+  evaluations_multiplier: 20
+
+seeds:
+  file: seeds.csv
+  run_ids: [smoke-1]

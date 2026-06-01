@@ -8,7 +8,7 @@ from typing import Protocol
 
 import numpy as np
 
-from wae_project.experiments.config import AlgorithmConfig
+from wae_project.experiments.config import MoCmaEsConfig
 
 
 COMOCMA_INSTALL_HINT = (
@@ -43,7 +43,7 @@ class OptimizationResult:
 
 def run_mo_cma_es(
     problem: BiObjectiveProblem,
-    config: AlgorithmConfig,
+    config: MoCmaEsConfig,
     budget: int,
     seed: int,
 ) -> OptimizationResult:
