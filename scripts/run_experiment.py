@@ -1,4 +1,4 @@
-"""Run a configured MO-CMA-ES experiment."""
+"""Run configured optimization experiments."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ from pathlib import Path
 import sys
 
 from wae_project.algorithms.mo_cma_es import run_mo_cma_es
+from wae_project.algorithms.parego import run_parego
 from wae_project.benchmarks.coco_biobj import iter_coco_biobj_problems
+from wae_project.experiments.config import AlgorithmConfig, MoCmaEsConfig, ParEgoConfig
 from wae_project.experiments.config import load_experiment_config
 from wae_project.experiments.results import result_rows, write_results_csv
 
@@ -36,37 +38,38 @@ def main() -> int:
 
     rows = []
     try:
-        for seed_entry in config.seeds:
-            for problem in iter_coco_biobj_problems(
-                config.benchmark,
-                config.budget.evaluations_multiplier,
-            ):
-                try:
-                    print(
-                        "Running "
-                        f"{config.algorithm.name} "
-                        f"run_id={seed_entry.run_id} "
-                        f"seed={seed_entry.seed} "
-                        f"problem={problem.id} "
-                        f"budget={problem.spec.budget}"
-                    )
-                    result = run_mo_cma_es(
-                        problem=problem,
-                        config=config.algorithm,
-                        budget=problem.spec.budget,
-                        seed=seed_entry.seed,
-                    )
-                    rows.extend(
-                        result_rows(
-                            experiment_name=config.name,
-                            run_id=seed_entry.run_id,
-                            seed=seed_entry.seed,
-                            problem=problem,
-                            result=result,
+        for algorithm in config.algorithms:
+            for seed_entry in config.seeds:
+                for problem in iter_coco_biobj_problems(
+                    config.benchmark,
+                    config.budget.evaluations_multiplier,
+                ):
+                    try:
+                        print(
+                            "Running "
+                            f"{algorithm.name} "
+                            f"run_id={seed_entry.run_id} "
+                            f"seed={seed_entry.seed} "
+                            f"problem={problem.id} "
+                            f"budget={problem.spec.budget}"
                         )
-                    )
-                finally:
-                    problem.free()
+                        result = _run_algorithm(
+                            algorithm=algorithm,
+                            problem=problem,
+                            budget=problem.spec.budget,
+                            seed=seed_entry.seed,
+                        )
+                        rows.extend(
+                            result_rows(
+                                experiment_name=config.name,
+                                run_id=seed_entry.run_id,
+                                seed=seed_entry.seed,
+                                problem=problem,
+                                result=result,
+                            )
+                        )
+                    finally:
+                        problem.free()
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -74,6 +77,19 @@ def main() -> int:
     write_results_csv(output_path, rows)
     print(f"Wrote {len(rows)} evaluations to {output_path}")
     return 0
+
+
+def _run_algorithm(
+    algorithm: AlgorithmConfig,
+    problem,
+    budget: int,
+    seed: int,
+):
+    if isinstance(algorithm, MoCmaEsConfig):
+        return run_mo_cma_es(problem=problem, config=algorithm, budget=budget, seed=seed)
+    if isinstance(algorithm, ParEgoConfig):
+        return run_parego(problem=problem, config=algorithm, budget=budget, seed=seed)
+    raise ValueError(f"Unsupported algorithm config type: {type(algorithm).__name__}.")
 
 
 if __name__ == "__main__":
