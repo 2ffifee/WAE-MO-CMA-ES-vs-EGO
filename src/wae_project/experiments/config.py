@@ -8,6 +8,8 @@ import csv
 
 import yaml
 
+BBOB_BIOBJ_FUNCTION_COUNT = 55
+
 
 @dataclass(frozen=True)
 class BenchmarkConfig:
@@ -59,6 +61,8 @@ class ExperimentConfig:
     benchmark: BenchmarkConfig
     budget: BudgetConfig
     seeds: tuple[SeedEntry, ...]
+    coco_output_dir: Path | None = None
+    resume: bool = False
 
     @property
     def algorithm(self) -> AlgorithmConfig:
@@ -86,7 +90,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     benchmark_config = BenchmarkConfig(
         suite=_required_str(benchmark, "suite"),
         dimensions=_required_int_tuple(benchmark, "dimensions"),
-        function_ids=_required_int_tuple(benchmark, "function_ids"),
+        function_ids=_parse_function_ids(benchmark),
         instances=_required_int_tuple(benchmark, "instances"),
         lower_bound=float(_required_number(benchmark, "lower_bound")),
         upper_bound=float(_required_number(benchmark, "upper_bound")),
@@ -107,6 +111,10 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     if not seeds:
         raise ValueError("At least one seed entry must be selected.")
 
+    coco_dir = experiment.get("coco_output_dir")
+    coco_output_dir = Path(coco_dir) if isinstance(coco_dir, str) and coco_dir.strip() else None
+    resume = bool(experiment.get("resume", False))
+
     return ExperimentConfig(
         name=_required_str(experiment, "name"),
         output_dir=Path(_required_str(experiment, "output_dir")),
@@ -114,6 +122,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         benchmark=benchmark_config,
         budget=budget_config,
         seeds=seeds,
+        coco_output_dir=coco_output_dir,
+        resume=resume,
     )
 
 
@@ -217,6 +227,19 @@ def _required_positive_int(raw: dict, key: str) -> int:
     if not isinstance(value, int) or value <= 0:
         raise ValueError(f"Missing or invalid positive integer value '{key}'.")
     return value
+
+
+def _parse_function_ids(benchmark: dict) -> tuple[int, ...]:
+    value = benchmark.get("function_ids")
+    if value == "all":
+        return tuple(range(1, BBOB_BIOBJ_FUNCTION_COUNT + 1))
+    if isinstance(value, dict):
+        start = int(value.get("from", 1))
+        end = int(value.get("to", BBOB_BIOBJ_FUNCTION_COUNT))
+        if start <= 0 or end < start:
+            raise ValueError("function_ids range must satisfy 1 <= from <= to.")
+        return tuple(range(start, end + 1))
+    return _required_int_tuple(benchmark, "function_ids")
 
 
 def _required_int_tuple(raw: dict, key: str) -> tuple[int, ...]:
