@@ -74,6 +74,14 @@ class CocoBiobjProblem:
             )
         return values
 
+    def observe_with(self, observer: object) -> None:
+        """Attach a COCO observer so evaluations are logged for cocopp."""
+
+        observe = getattr(self.problem, "observe_with", None)
+        if not callable(observe):
+            raise RuntimeError("COCO problem backend does not support observe_with().")
+        observe(observer)
+
     def free(self) -> None:
         """Release the underlying COCO problem if the backend exposes this method."""
 

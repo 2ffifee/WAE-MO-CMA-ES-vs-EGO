@@ -1,15 +1,12 @@
-"""Run a configured MO-CMA-ES experiment."""
+"""Run configured optimization experiments."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import sys
 
-from wae_project.algorithms.mo_cma_es import run_mo_cma_es
-from wae_project.benchmarks.coco_biobj import iter_coco_biobj_problems
 from wae_project.experiments.config import load_experiment_config
-from wae_project.experiments.results import result_rows, write_results_csv
+from wae_project.experiments.runner import RunOverrides, run_experiment
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +23,28 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional output CSV path. Defaults to <output_dir>/<experiment_name>.csv.",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip runs already present in the output CSV.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print task count without running optimizers.",
+    )
+    parser.add_argument(
+        "--function-from",
+        type=int,
+        default=None,
+        help="Override benchmark: first function id (inclusive).",
+    )
+    parser.add_argument(
+        "--function-to",
+        type=int,
+        default=None,
+        help="Override benchmark: last function id (inclusive).",
+    )
     return parser.parse_args()
 
 
@@ -33,47 +52,21 @@ def main() -> int:
     args = parse_args()
     config = load_experiment_config(args.config)
     output_path = args.output or config.output_dir / f"{config.name}.csv"
+    resume = args.resume or config.resume
 
-    rows = []
-    try:
-        for seed_entry in config.seeds:
-            for problem in iter_coco_biobj_problems(
-                config.benchmark,
-                config.budget.evaluations_multiplier,
-            ):
-                try:
-                    print(
-                        "Running "
-                        f"{config.algorithm.name} "
-                        f"run_id={seed_entry.run_id} "
-                        f"seed={seed_entry.seed} "
-                        f"problem={problem.id} "
-                        f"budget={problem.spec.budget}"
-                    )
-                    result = run_mo_cma_es(
-                        problem=problem,
-                        config=config.algorithm,
-                        budget=problem.spec.budget,
-                        seed=seed_entry.seed,
-                    )
-                    rows.extend(
-                        result_rows(
-                            experiment_name=config.name,
-                            run_id=seed_entry.run_id,
-                            seed=seed_entry.seed,
-                            problem=problem,
-                            result=result,
-                        )
-                    )
-                finally:
-                    problem.free()
-    except RuntimeError as exc:
-        print(exc, file=sys.stderr)
-        return 1
+    overrides = None
+    if args.function_from is not None or args.function_to is not None:
+        function_from = args.function_from or min(config.benchmark.function_ids)
+        function_to = args.function_to or max(config.benchmark.function_ids)
+        overrides = RunOverrides(function_ids=tuple(range(function_from, function_to + 1)))
 
-    write_results_csv(output_path, rows)
-    print(f"Wrote {len(rows)} evaluations to {output_path}")
-    return 0
+    return run_experiment(
+        config,
+        output_path,
+        resume=resume,
+        overrides=overrides,
+        dry_run=args.dry_run,
+    )
 
 
 if __name__ == "__main__":
