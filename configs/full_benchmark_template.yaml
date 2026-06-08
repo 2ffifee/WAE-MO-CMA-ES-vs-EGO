@@ -1,0 +1,33 @@
+# Szablon pełnego benchmarku — użyj configs/full_benchmark.yaml (runner + resume)
+experiment:
+  name: full_comparison
+  output_dir: results/raw
+  coco_output_dir: coco/full_b100
+  resume: true
+
+algorithms:
+  - name: mo-cma-es
+    num_kernels: 5
+    sigma0: 0.3
+    reference_point: [100000000.0, 100000000.0]
+    ask_mode: sequential
+  - name: parego
+    initial_points: 10
+    candidate_restarts: 5
+    raw_samples: 128
+    scalarization_samples: 3
+
+benchmark:
+  suite: bbob-biobj
+  dimensions: [2, 3, 5, 10]
+  function_ids: all
+  instances: [1]
+  lower_bound: -5.0
+  upper_bound: 5.0
+
+budget:
+  evaluations_multiplier: 100
+
+seeds:
+  file: seeds_full.csv
+  run_ids: []

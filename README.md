@@ -8,7 +8,7 @@ Klasyczny EGO jest algorytmem jednocelowym, dlatego w tym projekcie dla benchmar
 
 ## Struktura projektu
 
-- `docs/` - dokumentacja projektowa.
+- `docs/` - dokumentacja projektowa ([instrukcja uruchomienia](docs/URUCHOMIENIE.md)).
 - `src/` - kod zrodlowy projektu.
 - `scripts/` - skrypty uruchomieniowe.
 - `configs/` - konfiguracje eksperymentow.
@@ -95,3 +95,70 @@ Najwazniejsze pliki wynikowe:
 - `results/raw/comparison_smoke.csv` - wszystkie ewaluacje obu algorytmow.
 - `results/processed/comparison_smoke_summary.csv` - tabela podsumowania.
 - `results/processed/comparison_smoke_fronts.png` - wykres punktow i frontow niezdominowanych.
+
+## Analiza porownawcza (ERT, data profiles)
+
+```bash
+python scripts/analyze_results.py --input results/raw/comparison_smoke.csv
+```
+
+Generuje m.in.: `*_ert.csv`, `*_data_profiles.csv`, wykresy profili i boxploty ERT.
+
+## Sweep budzetu (10D, 50D, 100D, ...)
+
+```bash
+python scripts/run_budget_sweep.py --config configs/comparison_smoke.yaml --multipliers 10,50,100
+python scripts/analyze_results.py --input results/raw/budget_sweep
+```
+
+## Konfiguracje eksperymentow
+
+| Plik | Opis |
+|------|------|
+| `configs/comparison_smoke.yaml` | Minimalny porownanie 2 algorytmow |
+| `configs/pilot_comparison.yaml` | Pilot 3 funkcje, D=2 |
+| `configs/medium_comparison.yaml` | 10 funkcji, D=2,3,5, budzet 100D |
+| `configs/full_benchmark.yaml` | **55 funkcji**, D=2,3,5,10, 30 seedow, budzet 100D, COCO log |
+| `configs/full_benchmark_large.yaml` | Jak wyzej, budzet 1000D |
+| `configs/study_plan.yaml` | Orchestrator wszystkich faz z raportu |
+
+## Pelny benchmark (55 funkcji BBOB-BIOBJ)
+
+Uruchomienie wznawialne, podzielone na chunki po 5 funkcjach:
+
+```bash
+python scripts/run_full_benchmark.py --config configs/full_benchmark.yaml --resume --dry-run
+python scripts/run_full_benchmark.py --config configs/full_benchmark.yaml --resume
+```
+
+Wyniki: `results/raw/full_comparison_b100.csv`, logi COCO: `exdata/coco/full_b100/`.
+
+## Caly plan eksperymentow
+
+```bash
+python scripts/run_study.py --plan configs/study_plan.yaml --dry-run
+python scripts/run_study.py --phase full_small_budget
+```
+
+## Statystyka (Friedman, Wilcoxon, Holm)
+
+```bash
+python scripts/run_statistics.py --input results/raw/pilot_comparison.csv
+```
+
+## Raport COCO (cocopp)
+
+Po eksperymencie z `coco_output_dir` w YAML:
+
+```bash
+python scripts/generate_cocopp_report.py --data-dir exdata/coco/full_b100
+```
+
+## Testy
+
+```bash
+pytest tests/ -v
+```
+
+**Pelna instrukcja uruchomienia:** [`docs/URUCHOMIENIE.md`](docs/URUCHOMIENIE.md)  
+Szczegoly zakresu PR: `docs/PR_SCOPE.md`.
