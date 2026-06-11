@@ -3,59 +3,15 @@ study:
   name: wae_mo_cma_es_vs_ego
 
 phases:
-  - id: pilot
-    type: experiment
-    config: configs/pilot_comparison.yaml
-    resume: true
-    analyze:
-      - type: analyze_results
-        input: results/raw/pilot_comparison.csv
-      - type: statistics
-        input: results/raw/pilot_comparison.csv
-
-  - id: medium
-    type: experiment
-    config: configs/medium_comparison.yaml
-    resume: true
-    analyze:
-      - type: analyze_results
-        input: results/raw/medium_comparison.csv
-      - type: statistics
-        input: results/raw/medium_comparison.csv
-
-  - id: budget_sweep
-    type: budget_sweep
-    config: configs/medium_comparison.yaml
-    multipliers: [10, 50, 100, 1000]
-    output_dir: results/raw/budget_sweep
-    analyze:
-      - type: analyze_results
-        input: results/raw/budget_sweep
-      - type: statistics
-        input: results/raw/budget_sweep
-
-  - id: full_small_budget
-    type: full_benchmark
-    config: configs/full_benchmark.yaml
-    chunk_size: 5
-    resume: true
-    analyze:
-      - type: analyze_results
-        input: results/raw/full_comparison_b100.csv
-      - type: statistics
-        input: results/raw/full_comparison_b100.csv
-      - type: cocopp
-        data_dir: exdata/coco/full_b100
-
   - id: full_large_budget
     type: full_benchmark
-    config: configs/full_benchmark_large.yaml
+    config: configs/full_benchmark_12h.yaml
     chunk_size: 5
     resume: true
     analyze:
       - type: analyze_results
-        input: results/raw/full_comparison_b1000.csv
+        input: results/raw/full_comparison_12h_test.csv
       - type: statistics
-        input: results/raw/full_comparison_b1000.csv
+        input: results/raw/full_comparison_12h_test.csv
       - type: cocopp
-        data_dir: exdata/coco/full_b1000
+        data_dir: exdata/coco/full_12h_test

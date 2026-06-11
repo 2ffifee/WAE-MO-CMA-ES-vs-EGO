@@ -1,0 +1,207 @@
+% Wymaga pliku klasy sn-jnl.cls w tym samym folderze
+\documentclass[default]{sn-jnl}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+
+% Zmienna pomocnicza do ścieżki obrazków
+\newcommand{\figdir}{figures} 
+
+\begin{document}
+
+\title[MO-CMA-ES vs ParEGO]{Porównanie działania algorytmu MO-CMA-ES z algorytmem ParEGO}
+\subtitle{Dokumentacja końcowa — Wstęp do algorytmów ewolucyjnych (Projekt nr 4)}
+
+% W szablonie Springer Nature autorów definiuje się za pomocą specjalnych tagów.
+% Numery indeksów i adresy e-mail możesz dostosować poniżej.
+\author*[1]{\fnm{Igor} \sur{Januszkiewicz}}\email{nr\_indeksu\_1@pw.edu.pl}
+\author[1]{\fnm{Filip} \sur{Filipkowski}}\email{nr\_indeksu\_2@pw.edu.pl}
+\author[1]{\fnm{Sandra} \sur{Adamiec}}\email{nr\_indeksu\_3@pw.edu.pl}
+
+\affil[1]{\orgname{Politechnika Warszawska}, \orgaddress{\city{Warszawa}, \country{Polska}}}
+
+\abstract{
+  \textbf{Cel.} Porównanie efektywności algorytmu ewolucyjnego MO-CMA-ES oraz opartego na modelach zastępczych algorytmu ParEGO w rozwiązywaniu ciągłych problemów optymalizacji wielokryterialnej (ang. \textit{bi-objective optimization}).
+
+  \textbf{Metoda.} Badania ewaluacyjne przeprowadzono w środowisku COCO na zbiorze funkcji BBOB-BIOBJ, obejmującym 55 instancji testowych o zróżnicowanej strukturze, dla przestrzeni poszukiwań o wymiarach $D \in \{2, 3, 5\}$. Aby zasymulować problemy o wysokim koszcie obliczeniowym, budżet ewaluacji ograniczono rygorystycznie do zaledwie $100D$. Do oceny jakości uzyskanych frontów Pareto wykorzystano miarę hiperobjętości (ang. \textit{Hypervolume}, HV). Wykonano testy statystyczne na spójnym zestawie ziarna losowego (165 zestawień parametrycznych).
+
+  \textbf{Wyniki.} Algorytm ParEGO osiągnął znacznie lepsze wyniki dla narzuconego, krótkiego budżetu ewaluacyjnego. Zdominował on algorytm populacyjny pod względem miary HV w 162 ze 165 testowanych instancji, co potwierdzono za pomocą statystycznego testu Wilcoxona ($p \approx 8.08 \cdot 10^{-27}$).
+
+  \textbf{Wnioski.} Algorytm ParEGO zdecydowanie przewyższa skutecznością MO-CMA-ES w scenariuszach z mocno ograniczonym budżetem rzędu kilkuset ewaluacji, wykazując się znacznie lepszą opłacalnością próbkowania i wyższą efektywnością konwergencji.
+}
+
+\keywords{MO-CMA-ES, ParEGO, COCO, BBOB-BIOBJ, Optymalizacja wielokryterialna, Kriging}
+
+\maketitle
+
+% ============================================================================
+% 1. WPROWADZENIE
+% ============================================================================
+\section{Wprowadzenie}\label{sec:wprowadzenie}
+
+Optymalizacja wielokryterialna polega na jednoczesnym poszukiwaniu minimum dla kilku funkcji celu. Uzyskane rozwiązania (optymalne w sensie Pareto) tworzą front, na którym poprawa wartości jednego z kryteriów pociąga za sobą konieczność pogorszenia innego. Rozwiązywanie tego typu problemów staje się wyzwaniem badawczym w sytuacjach, gdy pojedyncza ewaluacja rozwiązania wiąże się z dotkliwym kosztem obliczeniowym i czasowym.
+
+\textbf{Cel pracy:} porównanie skuteczności algorytmu bazującego na strategii ewolucyjnej (MO-CMA-ES) z metodą opartą na modelach zastępczych i optymalizacji bayesowskiej (ParEGO).
+
+Eksperyment przeprowadzono na zbiorze funkcji testowych \textbf{BBOB-BIOBJ} w ramach środowiska badawczego \textbf{COCO}. Zakres badań objął 55 wariantów funkcji w przestrzeniach o wymiarowości $D \in \{2, 3, 5\}$. Aby wiernie oddać warunki drogich estymacji, w obu wariantach algorytmicznych narzucono drastyczne ograniczenie budżetu do zaledwie $100D$ ewaluacji (odpowiednio 200, 300 i 500 punktów badawczych na pojedyncze uruchomienie).
+
+% ============================================================================
+% 2. OPIS PROBLEMU
+% ============================================================================
+\section{Opis problemu}\label{sec:problem}
+
+Rozważany jest problem optymalizacji dwukryterialnej zdefiniowany w następujący sposób:
+\begin{equation}
+  \min_{\mathbf{x} \in \Omega \subset \mathbb{R}^D} \;
+  \mathbf{f}(\mathbf{x}) = \bigl(f_1(\mathbf{x}), f_2(\mathbf{x})\bigr)^\top,
+\end{equation}
+gdzie przestrzeń poszukiwań została ograniczona do hiperprostokąta $\Omega = [-5, 5]^D$.
+
+\textbf{Front Pareto.} Poszukiwany zbiór rozwiązań to wektory niezdominowane w przestrzeni kryteriów, gdzie poprawa w jednym z wymiarów jest niemożliwa bez pogorszenia drugiego.
+
+\textbf{Hiperobjętość (HV).} Główna metryka oceniająca jakość uzyskanych rozwiązań. Oblicza ona objętość przestrzeni zdominowanej przez uzyskany zbiór punktów względem stałego punktu referencyjnego. W ramach prac zdefiniowano wektor referencyjny jako $(10^8, 10^8)$.
+
+\textbf{Budżet ewaluacji.} W celu wygenerowania miarodajnych danych w kontekście kosztownej optymalizacji, budżet zapytań do funkcji celu ograniczono do maksymalnej kwoty $B=100 \cdot D$.
+
+% ============================================================================
+% 3. ALGORYTMY
+% ============================================================================
+\section{Zastosowane algorytmy}\label{sec:algorytmy}
+
+\subsection{MO-CMA-ES}
+Wielokryterialny wariant strategii ewolucyjnej CMA-ES. Algorytm ten utrzymuje populację rozwiązań dominujących i na podstawie najlepszych osobników iteracyjnie adaptuje macierz kowariancji wielowymiarowego rozkładu normalnego, z którego losowane są kolejne próbki. Chociaż metoda ta charakteryzuje się świetnymi zdolnościami do optymalizacji trudnych topologicznie funkcji, mechanizm adaptacji wymaga stosunkowo dużego budżetu ewaluacji, aby odpowiednio dopasować macierz przejść \cite{Hansen2001}.
+
+\subsection{ParEGO (Wielokryterialny EGO)}
+Algorytm zaprojektowany specyficznie z myślą o drogiej optymalizacji obliczeniowej \cite{Jones1998}, rozszerzający klasyczną metodę EGO na problemy wielokryterialne \cite{Knowles2006}. ParEGO wykorzystuje losową skalaryzację funkcji celu za pomocą wektorów wag, przekształcając problem w zadanie jednokryterialne. Następnie buduje na tych danych model zastępczy oparty na procesach gaussowskich. Próbkowanie nowej przestrzeni oparte jest na maksymalizacji funkcji akwizycji Expected Improvement (EI). Na początku działania algorytmu inicjalizuje się przestrzeń modelu niewielką, losową próbą 10 punktów bazowych (tzw. etap \textit{warm-up}).
+
+\subsection{Uzasadnienie wyboru implementacji}
+Badania oparto na wirtualnym środowisku języka Python oraz otwartych bibliotekach o ugruntowanej pozycji. Wykorzystano hermetyczne moduły \texttt{comocma} dla podejścia ewolucyjnego oraz wysokowydajne frameworki \texttt{botorch}/\texttt{gpytorch} do obsługi optymalizacji bayesowskiej w ParEGO. Taka architektura oprogramowania ułatwia logowanie wyników, skalowalność eksperymentu i gwarantuje jego pełną odtwarzalność w systemach operacyjnych opartych na jądrze Linux.
+
+% ============================================================================
+% 4. EKSPERYMENTY
+% ============================================================================
+\section{Przeprowadzone eksperymenty numeryczne}\label{sec:eksperymenty}
+
+\subsection{Benchmark i konfiguracja}
+\begin{itemize}[noitemsep]
+  \item \textbf{Zestaw testowy:} BBOB-BIOBJ (środowisko COCO) \cite{Auger2009}, \texttt{suite=bbob-biobj}.
+  \item \textbf{Funkcje:} 55 identyfikatorów przypisanych w matrycy zadań narzędzia.
+  \item \textbf{Wymiarowość:} Ograniczona do przestrzeni małej wymiarowości: $D \in \{2, 3, 5\}$.
+  \item \textbf{Limit wywołań:} $B = 100 \cdot D$.
+  \item \textbf{Reprezentatywność próby:} Prezentowane wyniki pochodzą z wyizolowanego ziarna pseudolosowego (\texttt{run-01}).
+\end{itemize}
+
+\subsection{Powtarzalność eksperymentów}
+Wszystkie niezbędne kroki pozwalające na bezbłędne odtworzenie całego zaplecza badawczego opisano w dedykowanej instrukcji \texttt{docs/URUCHOMIENIE.md}. Zależności środowiskowe należy zainstalować za pomocą narzędzia \texttt{venv}.
+
+Pełne procedury eksperymentu można wywołać następującymi komendami:
+\begin{verbatim}
+pip install -e ".[dev]"
+python scripts/run_study.py --plan configs/study_plan.yaml
+\end{verbatim}
+
+W związku z dużą wagą wygenerowanych przez COCO danych, obszerniejsze zbiory zarchiwizowano poza repozytorium git, a użyte podczas badań ziarna wylistowano w pliku \texttt{configs/seeds\_full.csv}.
+
+% ============================================================================
+% 5. WYNIKI
+% ============================================================================
+\section{Wyniki}\label{sec:wyniki}
+
+\subsection{Porównanie jakości frontów (Hiperobjętość)}
+Głównym kryterium porównawczym analizowanych algorytmów była wartość zdominowanej hiperobjętości na koniec dostępnego budżetu obliczeniowego (Rys. \ref{fig:hv}). ParEGO -- jako metoda nietracąca zasobów na zbędne ewaluacje obszarów nieobiecujących -- okazało się zdecydowanym faworytem. Wykorzystanie modeli zastępczych z powodzeniem rekompensuje ograniczenia małego budżetu.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{\figdir/full_comparison_12h_clean_hv_comparison.png}
+  \caption{Wartość końcowa miary hiperobjętości dla zestawionych strategii.}
+  \label{fig:hv}
+\end{figure}
+
+\subsection{Profile danych (Data Profiles) oraz Oczekiwany Czas Działania (ERT)}
+Sukces algorytmu ParEGO wynika z jego założeń koncepcyjnych. Mechanizm wariancji modelu (EI) pozwala efektywnie eksplorować optymalny obszar przy minimalnej liczbie estymacji. Zostało to odzwierciedlone w wykresach profili sukcesu (Rys. \ref{fig:dataprofiles}), gdzie ParEGO charakteryzuje się znacznie szybszym wzrostem krzywej w stosunku do populacyjnego podejścia MO-CMA-ES. Podejście ewolucyjne w ramach tak wąskiego limitu operacyjnego jest w całości zdominowane.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{\figdir/full_comparison_12h_clean_data_profiles.png}
+  \caption{Zbiór rozwiązywalnych problemów osadzony z narzuconym limitem budżetowym (po lewej estymacja MO-CMA-ES, zdominowana przez trajektorie próbkowane przez ParEGO).}
+  \label{fig:dataprofiles}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\textwidth]{\figdir/full_comparison_12h_clean_ert_boxplot.png}
+  \caption{Rozkład wielkości statystycznej narzutów z uwzględnieniem oczekiwanego czasu działania (ERT) w liczbie ewaluacji minimalnych.}
+  \label{fig:ert}
+\end{figure}
+
+\subsection{Analiza statystyczna}
+\begin{table}[htbp]
+  \centering
+  \caption{Wyniki testu rangowanego Wilcoxona z wykorzystaniem poprawek analizy post-hoc Holma.}\label{tab:stats}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Testowana para algorytmów & $p$-value (Wilcoxon)   & $p$-value (korekta Holma) & Zwycięzca                     \\
+    \midrule
+    MO-CMA-ES vs ParEGO       & $8.08 \times 10^{-27}$ & $8.08 \times 10^{-27}$    & ParEGO (162 ze 165 instancji) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ============================================================================
+% 6. DYSKUSJA
+% ============================================================================
+\section{Dyskusja}\label{sec:dyskusja}
+
+Druzgocąca dominacja algorytmu ParEGO w przedstawionych pomiarach jest w pełni uzasadniona nałożonymi na proces barierami ewaluacyjnymi. Bardzo restrykcyjny budżet ($100 \cdot D$) uniemożliwił algorytmowi MO-CMA-ES wystarczającą adaptację jego struktury wewnętrznej. Metody populacyjne i ewolucyjne na początku swojego działania w dużym stopniu eksplorują losowo wyznaczoną dziedzinę, co znacząco zmniejsza ich rentowność w scenariuszach o drastycznie krótkim cyklu życia. Optymalizacja bayesowska (ParEGO) dzięki modelowaniu krajobrazu funkcji (ang. \textit{Surrogate Modelling}) i uczeniu się w locie, w pełni wykorzystuje potencjał każdej z pojedynczych ewaluacji.
+
+W ramach prac przyszłych sugeruje się zwiększenie dopuszczalnego progu budżetu ewaluacyjnego (np. do wartości rzędu $1000 \cdot D$). Pozwoliłoby to ustalić graniczny moment, w którym wzrost skuteczności ParEGO ulega stagnacji, i zaobserwować realną poprawę zdolności konwergencyjnych MO-CMA-ES.
+
+% ============================================================================
+% 7. RÓŻNICE WZGLĘDEM DOKUMENTACJI WSTĘPNEJ
+% ============================================================================
+\section{Różnice względem dokumentacji wstępnej}\label{sec:roznice}
+Eksperymenty zostały zrealizowane całkowicie zgodnie z planem założonym w dokumentacji wstępnej. Architektura badawcza oraz dobór wiodących technologii nie uległy zmianie, a ostateczna ewaluacja przebiegła bez zakłóceń względem pierwotnych założeń.
+
+% ============================================================================
+% 8. WNIOSKI
+% ============================================================================
+\section{Wnioski}\label{sec:wnioski}
+
+\begin{enumerate}[noitemsep]
+  \item Modele oparte na rozkładach zastępczych (Kriging, BoTorch) są jednoznacznym zwycięzcą w starciach optymalizacyjnych z rygorystycznie narzuconym limitem budżetowym (poniżej $100D$ ewaluacji).
+  \item Tradycyjne strategie populacyjne, opierające się o adaptację macierzy kowariancji (MO-CMA-ES), nie mają fizycznej możliwości na poprawne i zbieżne ukształtowanie wektorów w tak krótkiej próbie estymacyjnej.
+  \item W środowiskach docelowych wymagających inżynieryjnie ekstremalnej opłacalności próbkowania, ParEGO pozostaje zdecydowanie najsolidniejszym oraz najrozsądniejszym architektonicznie wyborem.
+\end{enumerate}
+
+% ============================================================================
+% 9. OŚWIADCZENIE O WYKORZYSTANIU AI
+% ============================================================================
+\section{Oświadczenie o wykorzystaniu narzędzi automatycznych (AI)}\label{sec:ai}
+Zgodnie z wymaganiami technicznymi, oświadczamy, że pierwotny tekst niniejszej dokumentacji końcowej został poddany redakcji oraz korekcie stylistyczno-językowej przy użyciu wielkiego modelu językowego (LLM). Głównym celem wykorzystania narzędzia było usunięcie kalek językowych, ujednolicenie specjalistycznej terminologii akademickiej z zakresu optymalizacji oraz przystosowanie struktury sprawozdania do wytycznych formalnych.
+
+Kod źródłowy, przeprowadzone eksperymenty, metryki statystyczne, wykresy analityczne oraz ogólne założenia i konkluzje naukowe raportu są wynikiem całkowicie autorskiej, inżynieryjnej pracy zespołu.
+
+% ============================================================================
+% BIBLIOGRAFIA
+% ============================================================================
+\begin{thebibliography}{9}
+  \bibitem{Hansen2001}
+  Hansen N, Ostermeier A (2001) Completely derandomized self-adaptation in evolution strategies. Evolutionary Computation 9(2):159--195.
+
+  \bibitem{Jones1998}
+  Jones DR, Schonlau M, Welch WJ (1998) Efficient global optimization of expensive black-box functions. Journal of Global Optimization 13(4):455--492.
+
+  \bibitem{Knowles2006}
+  Knowles J (2006) ParEGO: a hybrid algorithm with on-line landscape approximation for expensive multiobjective optimization problems. IEEE Transactions on Evolutionary Computation 10(1):50--66.
+
+  \bibitem{Auger2009}
+  Auger A et al (2009) Further results on the performance assessment for the COCO framework.
+\end{thebibliography}
+
+\end{document}

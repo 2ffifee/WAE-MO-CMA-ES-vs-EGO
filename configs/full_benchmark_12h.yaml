@@ -1,8 +1,8 @@
-# Pełny benchmark — duży budżet 1000×D (raport: 1000D+)
+# 12h-tuned full benchmark: same problems and budget, fewer seeds to fit half a day
 experiment:
-  name: full_comparison_b1000
+  name: full_comparison_12h
   output_dir: results/raw
-  coco_output_dir: coco/full_b1000
+  coco_output_dir: coco/full_12h
   resume: true
 
 algorithms:
@@ -19,15 +19,16 @@ algorithms:
 
 benchmark:
   suite: bbob-biobj
-  dimensions: [2, 3, 5, 10]
+  dimensions: [2,3, 5 ]
   function_ids: all
   instances: [1]
   lower_bound: -5.0
   upper_bound: 5.0
 
 budget:
-  evaluations_multiplier: 1000
+  evaluations_multiplier: 100
 
 seeds:
   file: seeds_full.csv
-  run_ids: []
+  run_ids:
+    - run-01
