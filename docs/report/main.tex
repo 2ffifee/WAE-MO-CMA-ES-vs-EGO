@@ -1,0 +1,234 @@
+% Wymaga pliku klasy sn-jnl.cls w tym samym folderze
+\documentclass[default]{sn-jnl}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+
+\newcommand{\figdir}{figures}
+
+\begin{document}
+
+\title[MO-CMA-ES vs ParEGO]{Porównanie działania algorytmu MO-CMA-ES z algorytmem ParEGO}
+\subtitle{Dokumentacja końcowa — Wstęp do algorytmów ewolucyjnych (Projekt nr 4)}
+
+\author*[1]{\fnm{Igor} \sur{Januszkiewicz}}
+\author[1]{\fnm{Filip} \sur{Filipkowski}}
+\author[1]{\fnm{Sandra} \sur{Adamiec}}
+
+\affil[1]{\orgname{Politechnika Warszawska}, \orgaddress{\city{Warszawa}, \country{Polska}}}
+
+\abstract{
+  \textbf{Cel.} Porównanie efektywności algorytmu ewolucyjnego MO-CMA-ES oraz opartego na modelach zastępczych algorytmu ParEGO w rozwiązywaniu ciągłych problemów optymalizacji wielokryterialnej (ang. \textit{bi-objective optimization}).
+
+  \textbf{Metoda.} Badania ewaluacyjne przeprowadzono w środowisku COCO na zbiorze funkcji BBOB-BIOBJ (55 funkcji) dla wymiarów $D \in \{2, 3, 5\}$ przy budżecie $100D$ ewaluacji. Jakość frontów Pareto oceniono miarą hiperobjętości (HV). Testy statystyczne wykonano na 165 konfiguracjach problemu (55 funkcji $\times$ 3 wymiary) z jednym ziarnem pseudolosowym (\texttt{run-01}).
+
+  \textbf{Wyniki.} Przy krótkim budżecie ParEGO osiągnął wyższy końcowy HV w 162 z 165 konfiguracji; test Wilcoxona dał $p \approx 8.08 \cdot 10^{-27}$.
+
+  \textbf{Wnioski.} Przy budżecie rzędu kilkuset ewaluacji ParEGO lepiej wykorzystuje każde wywołanie funkcji celu niż wielojądrowe MO-CMA-ES w konfiguracji Sofomore.
+}
+
+\keywords{MO-CMA-ES, ParEGO, COCO, BBOB-BIOBJ, Optymalizacja wielokryterialna, Kriging}
+
+\maketitle
+
+\section{Wprowadzenie}\label{sec:wprowadzenie}
+
+Optymalizacja wielokryterialna polega na jednoczesnym poszukiwaniu minimum dla kilku funkcji celu. Uzyskane rozwiązania (optymalne w sensie Pareto) tworzą front, na którym poprawa wartości jednego z kryteriów pociąga za sobą konieczność pogorszenia innego. Rozwiązywanie tego typu problemów staje się wyzwaniem badawczym w sytuacjach, gdy pojedyncza ewaluacja rozwiązania wiąże się z dotkliwym kosztem obliczeniowym i czasowym.
+
+\textbf{Cel pracy:} porównanie skuteczności algorytmu bazującego na strategii ewolucyjnej (MO-CMA-ES) z metodą opartą na modelach zastępczych i optymalizacji bayesowskiej (ParEGO).
+
+Eksperyment przeprowadzono na zbiorze funkcji testowych \textbf{BBOB-BIOBJ} w ramach środowiska badawczego \textbf{COCO}. Zakres badań objął 55 wariantów funkcji w przestrzeniach o wymiarowości $D \in \{2, 3, 5\}$. W obu wariantach algorytmicznych narzucono budżet $100D$ ewaluacji (odpowiednio 200, 300 i 500 wywołań funkcji celu na pojedyncze uruchomienie).
+
+\section{Opis problemu}\label{sec:problem}
+
+Rozważany jest problem optymalizacji dwukryterialnej:
+\begin{equation}
+  \min_{\mathbf{x} \in \Omega \subset \mathbb{R}^D} \;
+  \mathbf{f}(\mathbf{x}) = \bigl(f_1(\mathbf{x}), f_2(\mathbf{x})\bigr)^\top,
+\end{equation}
+gdzie $\Omega = [-5, 5]^D$.
+
+\textbf{Front Pareto.} Poszukiwany zbiór rozwiązań to wektory niezdominowane w przestrzeni kryteriów.
+
+\textbf{Hiperobjętość (HV).} Metryka jakości frontu: objętość regionu zdominowanego przez uzyskane punkty względem punktu referencyjnego (przy minimalizacji obu celów). W algorytmie MO-CMA-ES (Sofomore) punkt referencyjny wynosi $r_{\mathrm{Sofomore}} = (10^8, 10^8)$. W analizie porównawczej (skrypty \texttt{analyze\_results.py}) dla każdego uruchomienia przyjęto punkt zależny od danych: $\max$ wartości celów w runie plus margines 10\% rozpiętości.
+
+\textbf{Budżet ewaluacji.} $B = 100 \cdot D$.
+
+\section{Zastosowane algorytmy}\label{sec:algorytmy}
+
+\subsection{MO-CMA-ES}
+
+Jako algorytm ewolucyjny zastosowano wielokryterialne CMA-ES z biblioteki
+\texttt{comocma}, oparte na strategii adaptacji macierzy kowariancji
+\cite{Hansen2001}. W implementacji nie uruchamia się jednego solvera,
+lecz pięć niezależnych instancji CMA-ES (\textit{jąder}), koordynowanych
+przez framework \textit{Sofomore}.
+
+Każde jądro utrzymuje własny rozkład próbkowania w $\Omega = [-5,5]^D$
+i adaptuje macierz kowariancji na podstawie ostatnio ocenionych punktów.
+Obsługa dwóch funkcji celu odbywa się bez skalaryzacji: Sofomore wybiera
+kandydatów z poszczególnych jąder, korzystając z archiwum rozwiązań
+niezdominowanych oraz punktu referencyjnego $r_{\mathrm{Sofomore}}$.
+
+Parametry eksperymentu (\texttt{configs/full\_benchmark\_12h.yaml}):
+\texttt{num\_kernels}\,$=5$, początkowe odchylenie $\sigma_0 = 0.3$,
+losowe środki jąder (ziarno eksperymentu), tryb \texttt{sequential}
+(jedno zapytanie \texttt{ask()} na iterację). Kandydat jest ewaluowany
+na rzeczywistej funkcji COCO; wyniki przekazywane są przez \texttt{tell()}.
+Budżet $B = 100D$ jest twardym limitem liczby wywołań funkcji celu.
+
+\subsection{ParEGO (Wielokryterialny EGO)}
+
+Algorytm zaprojektowany z myślą o drogiej optymalizacji obliczeniowej
+\cite{Jones1998}, rozszerzający EGO na problemy wielokryterialne
+\cite{Knowles2006}. ParEGO stosuje losową skalaryzację celów, buduje model
+Gaussa (kriging) i wybiera kolejne punkty przez maksymalizację funkcji
+akwizycji Expected Improvement (EI). Inicjalizacja: 10 punktów (sekwencja
+Sobol). Parametry z YAML: \texttt{initial\_points}\,$=10$,
+\texttt{scalarization\_samples}\,$=3$, \texttt{candidate\_restarts}\,$=5$.
+
+\subsection{Uzasadnienie wyboru implementacji}
+
+Badania oparto na Pythonie 3.10+ oraz bibliotekach \texttt{comocma}
+(MO-CMA-ES), \texttt{botorch}/\texttt{gpytorch} (ParEGO) i
+\texttt{coco-experiment} (benchmark). Instrukcja instalacji i uruchomienia:
+\texttt{docs/URUCHOMIENIE.md}.
+
+\section{Przeprowadzone eksperymenty numeryczne}\label{sec:eksperymenty}
+
+\subsection{Benchmark i konfiguracja}
+\begin{itemize}[noitemsep]
+  \item \textbf{Zestaw testowy:} BBOB-BIOBJ (COCO) \cite{Auger2009}, \texttt{suite=bbob-biobj}.
+  \item \textbf{Funkcje:} 55 identyfikatorów (\texttt{function\_ids: all}).
+  \item \textbf{Wymiarowość:} $D \in \{2, 3, 5\}$.
+  \item \textbf{Limit wywołań:} $B = 100 \cdot D$.
+  \item \textbf{Ziarno:} \texttt{run-01} (seed 1001) z \texttt{configs/seeds\_full.csv}.
+\end{itemize}
+
+Metryki pomocnicze: uproszczone \textit{data profiles} (próg 90\% najlepszego HV
+w danej konfiguracji) oraz proxy ERT (ewaluacje do 95\% końcowego HV).
+
+\subsection{Powtarzalność eksperymentów}
+
+Zależności: \texttt{pip install -e ".[dev]"} (szczegóły w
+\texttt{docs/URUCHOMIENIE.md}).
+
+\textbf{Uruchomienie eksperymentu} (config \texttt{configs/full\_benchmark\_12h.yaml}):
+\begin{verbatim}
+python scripts/run_full_benchmark.py \
+  --config configs/full_benchmark_12h.yaml --resume
+\end{verbatim}
+Wynik: \texttt{results/raw/full\_comparison\_12h.csv}.
+
+\textbf{Analiza i statystyka} (dane z archiwum użyte w raporcie):
+\begin{verbatim}
+python scripts/analyze_results.py \
+  --input results/raw/full_comparison_12h_clean.csv
+python scripts/run_statistics.py \
+  --input results/raw/full_comparison_12h_clean.csv
+\end{verbatim}
+
+Surowe dane ($>$5\,MB) oraz plik \texttt{full\_comparison\_12h\_clean.csv}
+zarchiwizowano poza repozytorium git (Google Drive, folder WAE).
+W repozytorium: wykresy w \texttt{docs/report/figures/}.
+
+\section{Wyniki}\label{sec:wyniki}
+
+\subsection{Porównanie jakości frontów (Hiperobjętość)}
+
+Końcowy HV po wyczerpaniu budżetu (Rys.~\ref{fig:hv}). ParEGO osiąga wyższe wartości HV w większości konfiguracji problemu.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{\figdir/full_comparison_12h_clean_hv_comparison.png}
+  \caption{Końcowy hypervolume 2D dla MO-CMA-ES i ParEGO (budżet $100D$).}
+  \label{fig:hv}
+\end{figure}
+
+\subsection{Profile danych oraz ERT}
+
+Na Rys.~\ref{fig:dataprofiles} widać wyższą frakcję „rozwiązanych” konfiguracji
+dla ParEGO przy tym samym limicie budżetu. Rys.~\ref{fig:ert} pokazuje rozkład
+proxy ERT (mniej ewaluacji do progu HV oznacza szybszą poprawę).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{\figdir/full_comparison_12h_clean_data_profiles.png}
+  \caption{Uproszczone data profiles: frakcja konfiguracji z HV $\geq 90\%$ najlepszego w danym problemie.}
+  \label{fig:dataprofiles}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\textwidth]{\figdir/full_comparison_12h_clean_ert_boxplot.png}
+  \caption{Proxy ERT: liczba ewaluacji do 95\% końcowego HV.}
+  \label{fig:ert}
+\end{figure}
+
+\subsection{Analiza statystyczna}
+\begin{table}[htbp]
+  \centering
+  \caption{Test Wilcoxona (pary problemów, ten sam seed) z korektą Holma.}\label{tab:stats}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Para algorytmów & $p$-value (Wilcoxon) & $p$ po Holm & Wynik \\
+    \midrule
+    MO-CMA-ES vs ParEGO & $8.08 \times 10^{-27}$ & $8.08 \times 10^{-27}$ & ParEGO: 162/165 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Dyskusja}\label{sec:dyskusja}
+
+Przy budżecie $100D$ ParEGO lepiej wykorzystuje każdą ewaluację dzięki modelowi
+zastępczemu i funkcji EI. MO-CMA-ES potrzebuje więcej próbek, aby zdążyć
+zaadaptować macierze kowariancji pięciu jąder CMA-ES --- przy 200--500
+wywołaniach ta adaptacja pozostaje ograniczona. MO-CMA-ES wygrał w 3 z 165
+konfiguracji (m.in.\ funkcje 11 i 44 przy $D=2$).
+
+Kierunek dalszych badań: większy budżet (np.\ $1000D$), więcej seedów oraz
+wymiar $D=10$ zgodnie z pierwotnym planem.
+
+\section{Różnice względem dokumentacji wstępnej}\label{sec:roznice}
+
+\begin{itemize}[noitemsep]
+  \item \textbf{EGO:} zamiast GPflowOpt/SMAC3 zastosowano spójną implementację ParEGO (BoTorch).
+  \item \textbf{Zakres:} $D \in \{2,3,5\}$ zamiast $\{2,3,5,10\}$; jeden seed (\texttt{run-01}) zamiast 30.
+  \item \textbf{Czas:} eksperyment \texttt{full\_comparison\_12h} (~12\,h CPU) zamiast pełnego planu wszystkich faz.
+  \item \textbf{Środowisko:} \texttt{venv} + pip zamiast kontenera Podman.
+\end{itemize}
+
+\section{Wnioski}\label{sec:wnioski}
+
+\begin{enumerate}[noitemsep]
+  \item Przy budżecie $100D$ ParEGO osiąga statystycznie lepszy końcowy HV niż MO-CMA-ES (162/165, Wilcoxon).
+  \item MO-CMA-ES (Sofomore, 5 jąder) przy tak małym budżecie nie zdąża w pełni wykorzystać adaptacji CMA-ES.
+  \item Przy silnie ograniczonej liczbie ewaluacji sensowniejszym wyborem jest algorytm oparty na modelu zastępczym (ParEGO).
+\end{enumerate}
+
+\section{Oświadczenie o wykorzystaniu narzędzi automatycznych (AI)}\label{sec:ai}
+
+Tekst raportu był redagowany z użyciem narzędzia LLM (stylistyka, terminologia).
+Kod, eksperymenty, metryki, wykresy i wnioski merytoryczne są pracą zespołu.
+
+\begin{thebibliography}{9}
+  \bibitem{Hansen2001}
+  Hansen N, Ostermeier A (2001) Completely derandomized self-adaptation in evolution strategies. Evolutionary Computation 9(2):159--195.
+
+  \bibitem{Jones1998}
+  Jones DR, Schonlau M, Welch WJ (1998) Efficient global optimization of expensive black-box functions. Journal of Global Optimization 13(4):455--492.
+
+  \bibitem{Knowles2006}
+  Knowles J (2006) ParEGO: a hybrid algorithm with on-line landscape approximation for expensive multiobjective optimization problems. IEEE Transactions on Evolutionary Computation 10(1):50--66.
+
+  \bibitem{Auger2009}
+  Auger A et al (2009) Further results on the performance assessment for the COCO framework.
+\end{thebibliography}
+
+\end{document}
